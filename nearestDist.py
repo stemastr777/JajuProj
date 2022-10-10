@@ -1,6 +1,18 @@
 import pandas as pd
 from math import radians, cos, sin, asin, sqrt
 
+
+# Latitude and Longitude Converter
+def latLongConverter(latlong):
+    splitting = latlong[i].split(' ')
+    splitting_number = list(map(lambda x: int(x.rstrip(x[-1])), splitting[:2]))
+    wind_direction = splitting[2]
+    res = splitting_number[0] + (splitting_number[1] / 60)
+    if wind_direction == "LS" or wind_direction == "BB":
+        res *= -1
+    return(round(res,2))
+
+
 # Use Haversine formula
 def srcDistance(LaA, LaB, LoA, LoB):
     LoA = radians(LoA)  
@@ -16,29 +28,36 @@ def srcDistance(LaA, LaB, LoA, LoB):
     earth_rad = 6371
     return(Q * earth_rad) 
 
-# Get the desired data
-data = pd.read_csv("daftar-nama-daerah.csv")
-used_data = data.drop(['serial','status','parent_nid','type'], axis=1)
-used_data = used_data.loc[data["type"] == 2].drop_duplicates(subset="name").reset_index()
 
-# Make SQL statement string
-string = []
-for p in range(len(used_data)):
-    for s in range(len(used_data)):
+# Get the desired data
+raw_data = pd.read_csv("coordinate.csv")
+used_data = data.drop_duplicates(subset="city").drop("province", axis=1)
+copy_data = used_data.copy()
+
+
+# Convert latLong
+i = 0
+for la,lo in zip(used_data["latitude"], used_data["longitude"]):
+    copy_data["latitude"].iloc[i] = latLongConverter(la)
+    copy_data["longitude"].iloc[i] = latLongConverter(lo)
+    i += 1
+
+
+# Make distance dataframe
+new_df = pd.DataFrame(columns=["src_city","destination","distance(km)"])
+
+for p in range(len(copy_data)):
+    for s in range(len(copy_data)):
         if s == p:
             continue
-        res = srcDistance(
-                used_data.iloc[p,3], 
-                used_data.iloc[s,3],
-                used_data.iloc[p,4],
-                used_data.iloc[s,4]
-            )
-        string.append(
-            "({index}, {source_id}, {dest_id}, {distance})".format( index=len(string), 
-                                                                    source_id=used_data["nid"].iloc[p],
-                                                                    dest_id=used_data["nid"].iloc[s],
-                                                                    distance = "%.2f" % (res)
-                                                                )
-            )
-initialize = "INSERT INTO distance.test2 (`index`,source_id,dest_id,distance) VALUES\n "
-result = initialize + ",\n".join(string)
+        res_dist = srcDistance(
+                copy_data.iloc[p,1], 
+                copy_data.iloc[s,1],
+                copy_data.iloc[p,2],
+                copy_data.iloc[s,2]
+        )
+        new_df.loc[len(new_df)] = [copy_data["city"].iloc[p], copy_data["city"].iloc[s], res_dist]
+ 
+
+# Make JSON statement string
+new_df.to_json('resultDist.json', orient="records")
