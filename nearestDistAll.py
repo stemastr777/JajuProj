@@ -60,4 +60,4 @@ for p in range(len(copy_data)):
  
 
 # Make JSON statement string
-new_df.to_json('resultDist.json', orient="records")
+new_df.to_json('resultDistAll.json', orient="records")
